@@ -40,6 +40,7 @@
 #include <camera_info_manager/camera_info_manager.h>
 #include <sstream>
 #include <std_srvs/Empty.h>
+#include "sensor_msgs/CompressedImage.h"
 
 namespace usb_cam {
 
@@ -51,7 +52,9 @@ public:
 
   // shared image message
   sensor_msgs::Image img_;
+  sensor_msgs::CompressedImage img_compressed_;
   image_transport::CameraPublisher image_pub_;
+  ros::Publisher image_pub_cmp_;
 
   // parameters
   std::string video_device_name_, io_method_name_, pixel_format_name_, camera_name_, camera_info_url_;
@@ -60,6 +63,7 @@ public:
   int image_width_, image_height_, framerate_, exposure_, brightness_, contrast_, saturation_, sharpness_, focus_,
       white_balance_, gain_;
   bool autofocus_, autoexposure_, auto_white_balance_;
+  bool compressed_only_;
   boost::shared_ptr<camera_info_manager::CameraInfoManager> cinfo_;
 
   UsbCam cam_;
@@ -87,6 +91,7 @@ public:
     // advertise the main image topic
     image_transport::ImageTransport it(node_);
     image_pub_ = it.advertiseCamera("image_raw", 1);
+    image_pub_cmp_ = node_.advertise<sensor_msgs::CompressedImage>("image/compressed", 1);
 
     // grab the parameters
     node_.param("video_device", video_device_name_, std::string("/dev/video0"));
@@ -154,6 +159,11 @@ public:
       node_.shutdown();
       return;
     }
+
+    if (pixel_format == UsbCam::PIXEL_FORMAT_MJPEG)
+      compressed_only_ = true;
+    else
+      compressed_only_ = false;
 
     // start the camera
     cam_.start(video_device_name_.c_str(), io_method, pixel_format, image_width_,
@@ -229,15 +239,20 @@ public:
   bool take_and_send_image()
   {
     // grab the image
-    cam_.grab_image(&img_);
+    if (!compressed_only_) {
+      cam_.grab_image(&img_);
 
-    // grab the camera info
-    sensor_msgs::CameraInfoPtr ci(new sensor_msgs::CameraInfo(cinfo_->getCameraInfo()));
-    ci->header.frame_id = img_.header.frame_id;
-    ci->header.stamp = img_.header.stamp;
+      // grab the camera info
+      sensor_msgs::CameraInfoPtr ci(new sensor_msgs::CameraInfo(cinfo_->getCameraInfo()));
+      ci->header.frame_id = img_.header.frame_id;
+      ci->header.stamp = img_.header.stamp;
 
-    // publish the image
-    image_pub_.publish(img_, *ci);
+      // publish the image
+      image_pub_.publish(img_, *ci);
+    } else {
+      cam_.grab_image(&img_compressed_);
+      image_pub_cmp_.publish(img_compressed_);
+    }
 
     return true;
   }

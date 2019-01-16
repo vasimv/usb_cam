@@ -1,17 +1,10 @@
 <package>
-  <name>usb_cam</name>
+  <name>usb_camcmp</name>
   <version>0.3.6</version>
-  <description>A ROS Driver for V4L USB Cameras</description>
-
-  <maintainer email="rctoris@wpi.edu">Russell Toris</maintainer>
-  <maintainer email="ros-orphaned-packages@googlegroups.com">ROS Orphaned Package Maintainers</maintainer>
-  <author email="benjamin.pitzer@bosch.com">Benjamin Pitzer</author>
+  <description>A ROS Driver for V4L USB Cameras (compressed only on mjpeg)</description>
 
   <license>BSD</license>
-
-  <url type="website">http://wiki.ros.org/usb_cam</url>
-  <url type="bugtracker">https://github.com/bosch-ros-pkg/usb_cam/issues</url>
-  <url type="repository">https://github.com/bosch-ros-pkg/usb_cam</url>
+  <maintainer email="vasimv@gmail.com">Vasim Valeev</maintainer>
 
   <buildtool_depend>catkin</buildtool_depend>
 

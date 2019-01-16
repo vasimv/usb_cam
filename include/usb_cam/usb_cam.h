@@ -56,6 +56,7 @@ extern "C"
 #include <sstream>
 
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/CompressedImage.h>
 
 namespace usb_cam {
 
@@ -79,6 +80,9 @@ class UsbCam {
 		    int image_width, int image_height, int framerate);
   // shutdown camera
   void shutdown(void);
+
+  // grabs a compressed image from the camera
+  void grab_image(sensor_msgs::CompressedImage* image);
 
   // grabs a new image from the camera
   void grab_image(sensor_msgs::Image* image);

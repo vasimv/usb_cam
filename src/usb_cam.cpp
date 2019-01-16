@@ -51,6 +51,7 @@
 #include <ros/ros.h>
 #include <boost/lexical_cast.hpp>
 #include <sensor_msgs/fill_image.h>
+#include "sensor_msgs/CompressedImage.h"
 
 #include <usb_cam/usb_cam.h>
 
@@ -347,6 +348,9 @@ static void yuyv2rgb(char *YUV, char *RGB, int NumPixels)
   }
 }
 
+char *cmpImageData;
+int cmpImageDataLength;
+
 void rgb242rgb(char *YUV, char *RGB, int NumPixels)
 {
   memcpy(RGB, YUV, NumPixels * 3);
@@ -474,17 +478,21 @@ void UsbCam::process_image(const void * src, int len, camera_image_t *dest)
   }
   else if (pixelformat_ == V4L2_PIX_FMT_UYVY)
     uyvy2rgb((char*)src, dest->image, dest->width * dest->height);
-  else if (pixelformat_ == V4L2_PIX_FMT_MJPEG)
-    mjpeg2rgb((char*)src, len, dest->image, dest->width * dest->height);
-  else if (pixelformat_ == V4L2_PIX_FMT_RGB24)
+  else if (pixelformat_ == V4L2_PIX_FMT_MJPEG) {
+    // vasimv - do nothing, we don't decompress image
+    // mjpeg2rgb((char*)src, len, dest->image, dest->width * dest->height);
+    cmpImageData = (char *) src;
+    cmpImageDataLength = len;
+  } else if (pixelformat_ == V4L2_PIX_FMT_RGB24)
     rgb242rgb((char*)src, dest->image, dest->width * dest->height);
   else if (pixelformat_ == V4L2_PIX_FMT_GREY)
     memcpy(dest->image, (char*)src, dest->width * dest->height);
 }
 
+struct v4l2_buffer sbuf;
+
 int UsbCam::read_frame()
 {
-  struct v4l2_buffer buf;
   unsigned int i;
   int len;
 
@@ -514,12 +522,12 @@ int UsbCam::read_frame()
       break;
 
     case IO_METHOD_MMAP:
-      CLEAR(buf);
+      CLEAR(sbuf);
 
-      buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-      buf.memory = V4L2_MEMORY_MMAP;
+      sbuf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+      sbuf.memory = V4L2_MEMORY_MMAP;
 
-      if (-1 == xioctl(fd_, VIDIOC_DQBUF, &buf))
+      if (-1 == xioctl(fd_, VIDIOC_DQBUF, &sbuf))
       {
         switch (errno)
         {
@@ -536,22 +544,22 @@ int UsbCam::read_frame()
         }
       }
 
-      assert(buf.index < n_buffers_);
-      len = buf.bytesused;
-      process_image(buffers_[buf.index].start, len, image_);
+      assert(sbuf.index < n_buffers_);
+      len = sbuf.bytesused;
+      process_image(buffers_[sbuf.index].start, len, image_);
 
-      if (-1 == xioctl(fd_, VIDIOC_QBUF, &buf))
+      if (-1 == xioctl(fd_, VIDIOC_QBUF, &sbuf))
         errno_exit("VIDIOC_QBUF");
 
       break;
 
     case IO_METHOD_USERPTR:
-      CLEAR(buf);
+      CLEAR(sbuf);
 
-      buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-      buf.memory = V4L2_MEMORY_USERPTR;
+      sbuf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+      sbuf.memory = V4L2_MEMORY_USERPTR;
 
-      if (-1 == xioctl(fd_, VIDIOC_DQBUF, &buf))
+      if (-1 == xioctl(fd_, VIDIOC_DQBUF, &sbuf))
       {
         switch (errno)
         {
@@ -569,14 +577,14 @@ int UsbCam::read_frame()
       }
 
       for (i = 0; i < n_buffers_; ++i)
-        if (buf.m.userptr == (unsigned long)buffers_[i].start && buf.length == buffers_[i].length)
+        if (sbuf.m.userptr == (unsigned long)buffers_[i].start && sbuf.length == buffers_[i].length)
           break;
 
       assert(i < n_buffers_);
-      len = buf.bytesused;
-      process_image((void *)buf.m.userptr, len, image_);
+      len = sbuf.bytesused;
+      process_image((void *)sbuf.m.userptr, len, image_);
 
-      if (-1 == xioctl(fd_, VIDIOC_QBUF, &buf))
+      if (-1 == xioctl(fd_, VIDIOC_QBUF, &sbuf))
         errno_exit("VIDIOC_QBUF");
 
       break;
@@ -1077,6 +1085,14 @@ void UsbCam::shutdown(void)
   if(image_)
     free(image_);
   image_ = NULL;
+}
+
+void UsbCam::grab_image(sensor_msgs::CompressedImage *msg) {
+  grab_image();
+  msg->header.stamp = ros::Time::now();
+  msg->format = "jpg";
+  msg->data.clear();
+  msg->data.insert(msg->data.end(), cmpImageData, cmpImageData + cmpImageDataLength);
 }
 
 void UsbCam::grab_image(sensor_msgs::Image* msg)

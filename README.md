@@ -1,6 +1,8 @@
 usb_cam [![Build Status](https://api.travis-ci.org/bosch-ros-pkg/usb_cam.png)](https://travis-ci.org/bosch-ros-pkg/usb_cam)
 =======
 
+This driver is my fork of usb_cam by Benjamin Pitzer. The fork was made for weak embedded mini-computers (like Orange PI Zero or Raspberry PI) to publish only compressed frames from cameras, without de/re-compressing them. It works in the mode only if camera does output MJPEG streams (/<name>/image/compressed topic).
+
 #### A ROS Driver for V4L USB Cameras
 This package is based off of V4L devices specifically instead of just UVC.
 
